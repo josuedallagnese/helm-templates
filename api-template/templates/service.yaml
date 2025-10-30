@@ -1,0 +1,12 @@
+kind: Service
+apiVersion: v1
+metadata:
+  name: {{ .Values.name }}
+spec:
+  selector:
+    app.kubernetes.io/name: {{ .Values.name }}
+  ports:
+    - name: http-web
+      protocol: TCP
+      port: {{ .Values.service.port }}  
+  type: {{ .Values.service.type }}

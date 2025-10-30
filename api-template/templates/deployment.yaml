@@ -1,0 +1,129 @@
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: {{ .Values.name }}
+  labels:
+    app.kubernetes.io/name: {{ .Values.name }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: {{ .Values.maxUnavailable | default "30%"}}
+      maxSurge: {{ .Values.maxSurge | default "25%"}} 
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ .Values.name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ .Values.name }}
+        app.kubernetes.io/version: {{ .Values.image.tag }}
+    spec:
+      terminationGracePeriodSeconds: 60
+      topologySpreadConstraints:
+      - maxSkew: 1 
+        topologyKey: "topology.kubernetes.io/zone"
+        whenUnsatisfiable: DoNotSchedule 
+        labelSelector:
+          matchLabels:
+            app.kubernetes.io/name: {{ .Values.name }}
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - {{ .Values.name }}
+              topologyKey: topology.kubernetes.io/zone
+            weight: 100
+      {{- if .Values.nodeSelector }}
+      nodeSelector:
+      {{- toYaml .Values.nodeSelector | nindent 8 }}
+      {{- end }}
+      {{- if .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- if kindIs "string" .Values.imagePullSecrets }}
+        - name: {{ .Values.imagePullSecrets }}
+        {{- else }}
+        {{- toYaml .Values.imagePullSecrets | nindent 8 }}
+        {{- end }}
+      {{- end }}
+      containers:
+      - image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy | default "IfNotPresent" }}
+        name: {{ .Values.name }}
+        {{- if .Values.privilegedMode }}
+        securityContext:
+        privileged: true
+        runAsUser: 0
+        capabilities:
+            add:
+            - SYS_ADMIN
+            - DAC_READ_SEARCH
+        {{- end }}
+        {{- if .Values.startupBash }}
+        command:
+        - "/bin/sh"
+        - "-c"
+        args:
+        - {{ tpl .Values.startupBash . | quote }} 
+        {{- end }}
+        {{- if .Values.env }}
+        env:
+          {{- range $key, $value := .Values.env }}
+          - name: {{ $key | quote }}
+            value: {{ $value | quote }}
+          {{- end }}
+        {{- end }}
+        ports:
+        - name: http
+          containerPort: {{ .Values.service.port }}
+        {{- if or .Values.resources.requests .Values.resources.limits}}
+        resources:
+          {{- if .Values.resources.requests }}
+          requests: {{ .Values.resources.requests | toYaml | nindent 14 }}
+          {{- end }}
+          {{- if .Values.resources.limits }}
+          limits: {{ .Values.resources.limits | toYaml | nindent 14 }}
+          {{- end }}
+        {{- end }}
+        {{- if .Values.service.tcpProbe }}
+        livenessProbe:
+            tcpSocket:
+              port: {{ .Values.service.port }}
+        {{- else }}
+        ports:
+          - name: http
+            containerPort: {{ .Values.service.port }}
+        startupProbe:
+          httpGet:
+            path: {{ default "/health" .Values.service.startupProbe.path }}
+            port: {{ .Values.service.port }}
+          failureThreshold: {{ default 60 .Values.service.startupProbe.failureThreshold }}
+          periodSeconds: {{ default 10 .Values.service.startupProbe.periodSeconds }}
+          timeoutSeconds: {{ default 2 .Values.service.startupProbe.timeoutSeconds }}
+        readinessProbe:
+          httpGet:
+            {{- with .Values.service.readinessProbe }}
+            path: {{ default "/" .path }}
+            {{- else }}
+            path: /
+            {{- end }}
+            port: {{ .Values.service.port }}
+          initialDelaySeconds: {{ default 15 .Values.service.readinessProbe.initialDelaySeconds }}
+          periodSeconds: {{ default 10 .Values.service.readinessProbe.periodSeconds }}
+        livenessProbe:
+          httpGet:
+            {{- with .Values.service.livenessProbe }}
+            path: {{ default "/" .path }}
+            {{- else }}
+            path: /
+            {{- end }}
+            port: {{ .Values.service.port }}
+          initialDelaySeconds: {{ default 15 .Values.service.livenessProbe.initialDelaySeconds }}
+          periodSeconds: {{ default 10 .Values.service.livenessProbe.periodSeconds }}
+        {{- end }}

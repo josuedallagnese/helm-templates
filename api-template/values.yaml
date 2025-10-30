@@ -1,0 +1,69 @@
+replicaCount: 1
+
+name: my-api
+
+image:
+  repository: nginx
+  pullPolicy: IfNotPresent
+  tag: "latest"
+
+service:
+  type: NodePort
+  port: 8080
+  tcpProbe: false
+  startupProbe:
+    path: "/"
+    periodSeconds: 10
+    failureThreshold: 60
+    timeoutSeconds: 2
+  readinessProbe:
+    path: "/"
+    initialDelaySeconds: 15
+    periodSeconds: 10
+  livenessProbe:
+    path: "/"
+    initialDelaySeconds: 15
+    periodSeconds: 10
+
+ingress:
+  enabled: true
+  ingressClassName: "azure-application-gateway"
+  annotations:
+    appgw.ingress.kubernetes.io/ssl-redirect: "true"
+    appgw.ingress.kubernetes.io/appgw-ssl-certificate: "cert-name"
+  hosts:
+    - host: my-api
+      paths:
+        - path: /
+          pathType: Prefix
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 200m
+    memory: 256Mi
+
+autoscaling:
+  enabled: true
+  minReplicas: 1
+  maxReplicas: 3
+  scaleUp:
+    stabilizationWindowSeconds: 30
+    cpuPercent: 70
+    cpuPeriodSeconds: 30
+    podsQuantity: 1
+    memoryPercent: 80
+  scaleDown:
+    stabilizationWindowSeconds: 300
+    cpuPercent: 20
+    cpuPeriodSeconds: 60
+    podsQuantity: 1
+
+startupBash: ""
+privilegedMode: false
+
+nodeSelector: {}
+
+version: "1.0.0"

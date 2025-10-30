@@ -1,0 +1,53 @@
+{{- if .Values.autoscaling.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ .Values.name }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ .Values.name }}
+  minReplicas: {{ .Values.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.autoscaling.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.autoscaling.scaleUp.cpuPercent | default 70 }}
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.autoscaling.scaleUp.memoryPercent | default 80 }}
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: {{ .Values.autoscaling.scaleDown.stabilizationWindowSeconds | default 300 }}
+      policies:
+  {{- if hasKey .Values.autoscaling.scaleDown "cpuPercent" }}
+        - type: Percent
+          value: {{ .Values.autoscaling.scaleDown.cpuPercent | default 20 }}
+          periodSeconds: {{ .Values.autoscaling.scaleDown.cpuPeriodSeconds | default 60 }}
+  {{- end }}
+  {{- if hasKey .Values.autoscaling.scaleDown "podsQuantity" }}
+        - type: Pods
+          value: {{ .Values.autoscaling.scaleDown.podsQuantity | default 1 }}
+          periodSeconds: {{ .Values.autoscaling.scaleDown.periodSeconds | default 60 }}
+  {{- end }}
+    scaleUp:
+      stabilizationWindowSeconds: {{ .Values.autoscaling.scaleUp.stabilizationWindowSeconds | default 30 }}
+      policies:
+  {{- if hasKey .Values.autoscaling.scaleUp "cpuPercent" }}
+        - type: Percent
+          value: {{ .Values.autoscaling.scaleUp.cpuPercent | default 70 }}
+          periodSeconds: {{ .Values.autoscaling.scaleUp.cpuPeriodSeconds | default 60 }}
+  {{- end }}
+  {{- if hasKey .Values.autoscaling.scaleUp "podsQuantity" }}
+        - type: Pods
+          value: {{ .Values.autoscaling.scaleUp.podsQuantity | default 2 }}
+          periodSeconds: {{ .Values.autoscaling.scaleUp.periodSeconds | default 60 }}
+  {{- end }}
+{{- end }}
