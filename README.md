@@ -1,4 +1,4 @@
-# AKS Helm Chart Templates
+# Helm Chart Templates
 
 A collection of reusable Helm chart templates for deploying different workload types.
 
